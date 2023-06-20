@@ -282,6 +282,19 @@ impl Type {
         }
     }
 
+    pub fn require_struct_opt(&self) -> Option<(ModuleId, StructId, &[Type])> {
+        if let Type::Struct(mid, sid, targs) = self {
+            Some((*mid, *sid, targs.as_slice()))
+        } else if let Type::TypeParameter(_) = self {
+            None
+        } else {
+            panic!(
+                "expected `Type::Struct` or Type::TypeParameter, found: `{:?}`",
+                self
+            )
+        }
+    }
+
     /// Instantiates type parameters in this type.
     pub fn instantiate(&self, params: &[Type]) -> Type {
         if params.is_empty() {
