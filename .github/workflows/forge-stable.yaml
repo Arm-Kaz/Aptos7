@@ -119,7 +119,8 @@ jobs:
     with:
       IMAGE_TAG: ${{ needs.determine-test-metadata.outputs.IMAGE_TAG }}
       FORGE_NAMESPACE: forge-realistic-env-max-load-long-${{ needs.determine-test-metadata.outputs.IMAGE_TAG }}
-      FORGE_RUNNER_DURATION_SECS: 7200
+      # reduce temporarily, until longer tests can pass.
+      FORGE_RUNNER_DURATION_SECS: 2400
       FORGE_TEST_SUITE: realistic_env_max_load
       POST_TO_SLACK: true
 
