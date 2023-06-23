@@ -14,8 +14,9 @@ use aptos_types::{
     aggregate_signature::{AggregateSignature, PartialSignatures},
     epoch_state::EpochState,
 };
+use async_trait::async_trait;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::{collections::HashSet, ops::Deref, sync::Arc};
+use std::{collections::HashSet, ops::Deref, sync::Arc, time::Duration};
 
 pub trait DAGMessage: Sized + Clone + Serialize + DeserializeOwned {
     fn epoch(&self) -> u64;
@@ -33,6 +34,23 @@ pub trait DAGMessage: Sized + Clone + Serialize + DeserializeOwned {
             data: bcs::to_bytes(&self).unwrap(),
         })
     }
+}
+
+#[async_trait]
+pub trait DAGNetworkSender: Send + Sync {
+    async fn send_rpc(
+        &self,
+        receiver: Author,
+        message: ConsensusMsg,
+        timeout: Duration,
+    ) -> anyhow::Result<ConsensusMsg>;
+
+    async fn send_rpc_with_retry(
+        &self,
+        responders: Vec<Author>,
+        message: ConsensusMsg,
+        timeout: Duration,
+    ) -> anyhow::Result<ConsensusMsg>;
 }
 
 /// Represents the metadata about the node, without payload and parents from Node
@@ -56,6 +74,10 @@ impl NodeMetadata {
 
     pub fn author(&self) -> &Author {
         &self.author
+    }
+
+    pub fn epoch(&self) -> u64 {
+        self.epoch
     }
 }
 
@@ -143,6 +165,10 @@ impl Node {
     pub fn parents(&self) -> &[NodeMetadata] {
         &self.parents
     }
+
+    pub fn author(&self) -> &Author {
+        self.metadata.author()
+    }
 }
 
 /// Quorum signatures over the node digest
@@ -161,9 +187,13 @@ impl NodeCertificate {
             signatures,
         }
     }
+
+    pub fn signers(&self, validators: &[Author]) -> Vec<Author> {
+        self.signatures.get_signers_addresses(validators)
+    }
 }
 
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct CertifiedNode {
     node: Node,
     certificate: NodeCertificate,
@@ -172,6 +202,10 @@ pub struct CertifiedNode {
 impl CertifiedNode {
     pub fn new(node: Node, certificate: NodeCertificate) -> Self {
         Self { node, certificate }
+    }
+
+    pub fn certificate(&self) -> &NodeCertificate {
+        &self.certificate
     }
 }
 
