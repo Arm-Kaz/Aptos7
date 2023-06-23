@@ -5,14 +5,14 @@ import assert from "assert";
 import fs from "fs";
 import path from "path";
 import { NODE_URL, FAUCET_URL } from "./common";
-import { AptosAccount, AptosClient, TxnBuilderTypes, MaybeHexString, HexString, FaucetClient } from "aptos";
+import { AptosAccount, AptosClient, TxnBuilderTypes, MaybeHexString, HexString, FaucetClient, Network, Types, Provider, FungibleAssetClient } from "aptos";
 /**
-  This example depends on the MoonCoin.move module having already been published to the destination blockchain.
+  This example depends on the MoonCoin.move module built with fungible asset having already been published to the destination blockchain.
 
   One method to do so is to use the CLI:
       * Acquire the Aptos CLI, see https://aptos.dev/cli-tools/aptos-cli-tool/install-aptos-cli
-      * `pnpm your_coin ~/aptos-core/aptos-move/move-examples/moon_coin`.
-      * Open another terminal and `aptos move compile --package-dir ~/aptos-core/aptos-move/move-examples/moon_coin --save-metadata --named-addresses MoonCoin=<Alice address from above step>`.
+      * `pnpm your_coin ~/aptos-core/aptos-move/move-examples/fungible_asset/moon_coin`.
+      * Open another terminal and `aptos move compile --package-dir ~/aptos-core/aptos-move/move-examples/fungible_asset/moon_coin --save-metadata --named-addresses MoonCoin=<Alice address from above step>`.
       * Return to the first terminal and press enter.
  */
 
@@ -21,65 +21,74 @@ const readline = require("readline").createInterface({
   output: process.stdout,
 });
 
-class CoinClient extends AptosClient {
+class AdminClient extends AptosClient {
   constructor() {
     super(NODE_URL);
   }
 
-  /** Register the receiver account to receive transfers for the new coin. */
-  async registerCoin(coinTypeAddress: HexString, coinReceiver: AptosAccount): Promise<string> {
-    const rawTxn = await this.generateTransaction(coinReceiver.address(), {
-      function: "0x1::managed_coin::register",
-      type_arguments: [`${coinTypeAddress.hex()}::moon_coin::MoonCoin`],
-      arguments: [],
+  /** Admin forcefully transfers the newly created coin to a specified receiver address */
+  async transferCoin(admin: AptosAccount, fromAddress: HexString, toAddress: HexString, amount: number | bigint): Promise<string> {
+    const rawTxn = await this.generateTransaction(admin.address(), {
+      function: `${admin.address().hex()}::moon_coin::transfer`,
+      type_arguments: [],
+      arguments: [fromAddress.hex(), toAddress.hex(), amount],
     });
 
-    const bcsTxn = await this.signTransaction(coinReceiver, rawTxn);
+    const bcsTxn = await this.signTransaction(admin, rawTxn);
     const pendingTxn = await this.submitTransaction(bcsTxn);
 
     return pendingTxn.hash;
   }
 
-  /** Mints the newly created coin to a specified receiver address */
-  async transferCoin(sender: AptosAccount, receiverAddress: HexString, amount: number | bigint): Promise<string> {
-    const rawTxn = await this.generateTransaction(sender.address(), {
-      function: "0x1::aptos_account::transfer_coins",
-      type_arguments: [`${sender.address()}::moon_coin::MoonCoin`],
-      arguments: [receiverAddress.hex(), amount],
+  /** Admin mint the newly created coin to a specified receiver address */
+  async mintCoin(admin: AptosAccount, receiverAddress: HexString, amount: number | bigint): Promise<string> {
+    const rawTxn = await this.generateTransaction(admin.address(), {
+      function: `${admin.address().hex()}::moon_coin::mint`,
+      type_arguments: [],
+      arguments: [amount, receiverAddress.hex()],
     });
 
-    const bcsTxn = await this.signTransaction(sender, rawTxn);
+    const bcsTxn = await this.signTransaction(admin, rawTxn);
     const pendingTxn = await this.submitTransaction(bcsTxn);
 
     return pendingTxn.hash;
   }
 
-  /** Mints the newly created coin to a specified receiver address */
-  async mintCoin(minter: AptosAccount, receiverAddress: HexString, amount: number | bigint): Promise<string> {
-    const rawTxn = await this.generateTransaction(minter.address(), {
-      function: "0x1::managed_coin::mint",
-      type_arguments: [`${minter.address()}::moon_coin::MoonCoin`],
-      arguments: [receiverAddress.hex(), amount],
+  /** Admin burns the newly created coin from a specified receiver address */
+  async burnCoin(admin: AptosAccount, fromAddress: HexString, amount: number | bigint): Promise<string> {
+    const rawTxn = await this.generateTransaction(admin.address(), {
+      function: `${admin.address().hex()}::moon_coin::burn`,
+      type_arguments: [],
+      arguments: [fromAddress.hex(), amount],
     });
 
-    const bcsTxn = await this.signTransaction(minter, rawTxn);
+    const bcsTxn = await this.signTransaction(admin, rawTxn);
+    const pendingTxn = await this.submitTransaction(bcsTxn);
+
+    return pendingTxn.hash;
+  }
+
+  async set_frozen_flag(admin: AptosAccount, targetAddress: HexString, frozen: boolean): Promise<string> {
+    const rawTxn = await this.generateTransaction(admin.address(), {
+      function: `${admin.address().hex()}::moon_coin::set_frozen_flag`,
+      type_arguments: [],
+      arguments: [targetAddress.hex(), frozen],
+    });
+
+    const bcsTxn = await this.signTransaction(admin, rawTxn);
     const pendingTxn = await this.submitTransaction(bcsTxn);
 
     return pendingTxn.hash;
   }
 
   /** Return the balance of the newly created coin */
-  async getBalance(accountAddress: MaybeHexString, coinTypeAddress: HexString): Promise<string | number> {
-    try {
-      const resource = await this.getAccountResource(
-        accountAddress,
-        `0x1::coin::CoinStore<${coinTypeAddress.hex()}::moon_coin::MoonCoin>`,
-      );
-
-      return parseInt((resource.data as any)["coin"]["value"]);
-    } catch (_) {
-      return 0;
-    }
+  async getMetadata(admin: AptosAccount): Promise<MaybeHexString> {
+    const payload: Types.ViewRequest = {
+      function: `${admin.address().hex()}::moon_coin::get_metadata`,
+      type_arguments: [],
+      arguments: [],
+    };
+    return (await this.view(payload) as any)[0].inner as MaybeHexString;
   }
 }
 
@@ -87,16 +96,19 @@ class CoinClient extends AptosClient {
 async function main() {
   assert(process.argv.length == 3, "Expecting an argument that points to the moon_coin directory.");
 
-  const client = new CoinClient();
+  const client = new AdminClient();
+  const fungibleAssetClient = new FungibleAssetClient(new Provider(Network.DEVNET));
   const faucetClient = new FaucetClient(NODE_URL, FAUCET_URL);
 
   // Create two accounts, Alice and Bob, and fund Alice but not Bob
   const alice = new AptosAccount();
   const bob = new AptosAccount();
+  const charlie = new AptosAccount();
 
   console.log("\n=== Addresses ===");
   console.log(`Alice: ${alice.address()}`);
   console.log(`Bob: ${bob.address()}`);
+  console.log(`Charlie: ${charlie.address()}`);
 
   await faucetClient.fundAccount(alice.address(), 100_000_000);
   await faucetClient.fundAccount(bob.address(), 100_000_000);
@@ -111,26 +123,49 @@ async function main() {
   // :!:>publish
   const modulePath = process.argv[2];
   const packageMetadata = fs.readFileSync(path.join(modulePath, "build", "Examples", "package-metadata.bcs"));
-  const moduleData = fs.readFileSync(path.join(modulePath, "build", "Examples", "bytecode_modules", "star_coin.mv"));
+  const moduleData = fs.readFileSync(path.join(modulePath, "build", "Examples", "bytecode_modules", "moon_coin.mv"));
 
-  console.log("Publishing MoonCoin package.");
+  console.log("Publishing MoonCoin package.\n");
   let txnHash = await client.publishPackage(alice, new HexString(packageMetadata.toString("hex")).toUint8Array(), [
     new TxnBuilderTypes.Module(new HexString(moduleData.toString("hex")).toUint8Array()),
   ]);
   await client.waitForTransaction(txnHash, { checkSuccess: true }); // <:!:publish
 
-  console.log(`Bob's initial MoonCoin balance: ${await client.getBalance(bob.address(), alice.address())}.`);
-  console.log("Alice mints herself some of the new coin.");
-  txnHash = await client.registerCoin(alice.address(), alice);
-  txnHash = await client.
+  const metadata_addr = await client.getMetadata(alice);
+
+  console.log("All the balances in this exmaple refer to balance in primary fungible stores of each account.");
+  console.log(`Alice's initial MoonCoin balance: ${await fungibleAssetClient.getPrimaryBalance(alice.address(), metadata_addr)}.`);
+  console.log(`Bob's initial MoonCoin balance: ${await fungibleAssetClient.getPrimaryBalance(bob.address(), metadata_addr)}.`);
+  console.log(`Charlie's initial balance: ${await fungibleAssetClient.getPrimaryBalance(charlie.address(), metadata_addr)}.`);
+  console.log("Alice mints Charlie 100 coins.");
+  txnHash = await client.mintCoin(alice, charlie.address(), 100);
   await client.waitForTransaction(txnHash, { checkSuccess: true });
-  txnHash = await client.mintCoin(alice, alice.address(), 100);
+  console.log(`Charlie's updated MoonCoin primary fungible store balance: ${await fungibleAssetClient.getPrimaryBalance(charlie.address(), metadata_addr)}.`);
+
+  console.log("Alice freezes Bob's account.");
+  txnHash = await client.set_frozen_flag(alice, bob.address(), true);
   await client.waitForTransaction(txnHash, { checkSuccess: true });
 
-  console.log("Alice transfers the newly minted coins to Bob.");
-  txnHash = await client.transferCoin(alice, bob.address(), 100);
+  console.log("Alice as the admin forcefully transfers the newly minted coins of Charlie to Bob ignoring that Bob's account is frozen.");
+  txnHash = await client.transferCoin(alice, charlie.address(), bob.address(), 100);
   await client.waitForTransaction(txnHash, { checkSuccess: true });
-  console.log(`Bob's updated MoonCoin balance: ${await client.getBalance(bob.address(), alice.address())}.`);
+  console.log(`Bob's updated MoonCoin balance: ${await fungibleAssetClient.getPrimaryBalance(bob.address(), metadata_addr)}.`);
+
+  console.log("Alice unfreezes Bob's account.");
+  txnHash = await client.set_frozen_flag(alice, bob.address(), false);
+  await client.waitForTransaction(txnHash, { checkSuccess: true });
+
+  console.log("Alice burns 50 coins from Bob.");
+  txnHash = await client.burnCoin(alice, bob.address(), 50);
+  await client.waitForTransaction(txnHash, { checkSuccess: true });
+  console.log(`Bob's updated MoonCoin balance: ${await fungibleAssetClient.getPrimaryBalance(bob.address(), metadata_addr)}.`);
+
+  /// Normal fungible asset transfer between primary stores
+  console.log("Bob transfers 10 coins to Alice as the owner.");
+  txnHash = await fungibleAssetClient.transfer(bob, metadata_addr, alice.address(), 10);
+  await client.waitForTransaction(txnHash, { checkSuccess: true });
+  console.log(`Alice's updated MoonCoin balance: ${await fungibleAssetClient.getPrimaryBalance(alice.address(), metadata_addr)}.`);
+  console.log(`Bob's updated MoonCoin balance: ${await fungibleAssetClient.getPrimaryBalance(bob.address(), metadata_addr)}.`);
 }
 
 if (require.main === module) {

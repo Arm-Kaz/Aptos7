@@ -1,7 +1,7 @@
 /// A 2-in-1 module that combines managed_fungible_asset and coin_example into one module that when deployed, the
 /// deployer will be creating a new managed fungible asset with the hardcoded supply config, name, symbol, and decimals.
 /// The address of the asset can be obtained via get_metadata(). As a simple version, it only deal with primary stores.
-module example_addr::star_coin {
+module MoonCoin::moon_coin {
     use aptos_framework::fungible_asset::{Self, MintRef, TransferRef, BurnRef, Metadata, FungibleAsset};
     use aptos_framework::object::{Self, Object};
     use aptos_framework::primary_fungible_store;
@@ -13,7 +13,7 @@ module example_addr::star_coin {
     /// Only fungible asset metadata owner can make changes.
     const ENOT_OWNER: u64 = 1;
 
-    const ASSET_SYMBOL: vector<u8> = b"STAR";
+    const ASSET_SYMBOL: vector<u8> = b"MOON";
 
     #[resource_group_member(group = aptos_framework::object::ObjectGroup)]
     /// Hold refs to control the minting, transfer and burning of fungible assets.
@@ -24,12 +24,13 @@ module example_addr::star_coin {
     }
 
     /// Initialize metadata object and store the refs.
+    // :!:>initialize
     fun init_module(admin: &signer) {
         let constructor_ref = &object::create_named_object(admin, ASSET_SYMBOL);
         primary_fungible_store::create_primary_store_enabled_fungible_asset(
             constructor_ref,
             option::none(),
-            utf8(b"Star Coin"), /* name */
+            utf8(b"Moon Coin"), /* name */
             utf8(ASSET_SYMBOL), /* symbol */
             8, /* decimals */
             utf8(b"http://example.com/favicon.ico"), /* icon */
@@ -44,16 +45,17 @@ module example_addr::star_coin {
         move_to(
             &metadata_object_signer,
             ManagedFungibleAsset { mint_ref, transfer_ref, burn_ref }
-        )
+        )// <:!:initialize
     }
 
     #[view]
     /// Return the address of the managed fungible asset that's created when this module is deployed.
     public fun get_metadata(): Object<Metadata> {
-        let asset_address = object::create_object_address(&@example_addr, ASSET_SYMBOL);
+        let asset_address = object::create_object_address(&@MoonCoin, ASSET_SYMBOL);
         object::address_to_object<Metadata>(asset_address)
     }
 
+    // :!:>mint
     /// Mint as the owner of metadata object.
     public entry fun mint(admin: &signer, amount: u64, to: address) acquires ManagedFungibleAsset {
         let asset = get_metadata();
@@ -61,7 +63,7 @@ module example_addr::star_coin {
         let to_wallet = primary_fungible_store::ensure_primary_store_exists(to, asset);
         let fa = fungible_asset::mint(&managed_fungible_asset.mint_ref, amount);
         fungible_asset::deposit_with_ref(&managed_fungible_asset.transfer_ref, to_wallet, fa);
-    }
+    }// <:!:mint
 
     /// Transfer as the owner of metadata object ignoring `frozen` field.
     public entry fun transfer(admin: &signer, from: address, to: address, amount: u64) acquires ManagedFungibleAsset {
@@ -80,20 +82,12 @@ module example_addr::star_coin {
         fungible_asset::burn_from(burn_ref, from_wallet, amount);
     }
 
-    /// Freeze an account so it cannot transfer or receive fungible assets.
-    public entry fun freeze_account(admin: &signer, account: address) acquires ManagedFungibleAsset {
+    /// Freeze/Unfreeze an account so it cannot transfer or receive fungible assets.
+    public entry fun set_frozen_flag(admin: &signer, account: address, frozen: bool) acquires ManagedFungibleAsset {
         let asset = get_metadata();
         let transfer_ref = &authorized_borrow_refs(admin, asset).transfer_ref;
         let wallet = primary_fungible_store::ensure_primary_store_exists(account, asset);
-        fungible_asset::set_frozen_flag(transfer_ref, wallet, true);
-    }
-
-    /// Unfreeze an account so it can transfer or receive fungible assets.
-    public entry fun unfreeze_account(admin: &signer, account: address) acquires ManagedFungibleAsset {
-        let asset = get_metadata();
-        let transfer_ref = &authorized_borrow_refs(admin, asset).transfer_ref;
-        let wallet = primary_fungible_store::ensure_primary_store_exists(account, asset);
-        fungible_asset::set_frozen_flag(transfer_ref, wallet, false);
+        fungible_asset::set_frozen_flag(transfer_ref, wallet, frozen);
     }
 
     /// Withdraw as the owner of metadata object ignoring `frozen` field.
@@ -122,7 +116,7 @@ module example_addr::star_coin {
         borrow_global<ManagedFungibleAsset>(object::object_address(&asset))
     }
 
-    #[test(creator = @example_addr)]
+    #[test(creator = @MoonCoin)]
     fun test_basic_flow(
         creator: &signer,
     ) acquires ManagedFungibleAsset {
@@ -133,17 +127,17 @@ module example_addr::star_coin {
         mint(creator, 100, creator_address);
         let asset = get_metadata();
         assert!(primary_fungible_store::balance(creator_address, asset) == 100, 4);
-        freeze_account(creator, creator_address);
+        set_frozen_flag(creator, creator_address, true);
         assert!(primary_fungible_store::is_frozen(creator_address, asset), 5);
         transfer(creator, creator_address, aaron_address, 10);
         assert!(primary_fungible_store::balance(aaron_address, asset) == 10, 6);
 
-        unfreeze_account(creator, creator_address);
+        set_frozen_flag(creator, creator_address, false);
         assert!(!primary_fungible_store::is_frozen(creator_address, asset), 7);
         burn(creator, creator_address, 90);
     }
 
-    #[test(creator = @example_addr, aaron = @0xface)]
+    #[test(creator = @MoonCoin, aaron = @0xface)]
     #[expected_failure(abort_code = 0x50001, location = Self)]
     fun test_permission_denied(
         creator: &signer,

@@ -1,14 +1,17 @@
 ---
-title: "Your First Coin"
-slug: "your-first-coin"
+title: "Your First Fungible Asset"
+slug: "your-first-fungible-asset"
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# Your First Coin
+# Your First Fungible Asset
 
-This tutorial introduces how you can compile, deploy, and mint your own fungible asset, named [StarCoin](https://github.com/aptos-labs/aptos-core/tree/main/aptos-move/move-examples/fungible_asset/star_coin).
+This tutorial introduces how you can compile, deploy, and mint your own fungible asset (FA), named [Moon Coin](https://github.com/aptos-labs/aptos-core/tree/main/aptos-move/move-examples/fungible_asset/moon_coin).
+Make sure you have understood FA before moving on to the tutorial. If not, it is highly recommended to read it first.
+
+* [Fungible Asset](../standards/fungible-asset.md)
 
 ## Step 1: Pick an SDK
 
@@ -49,11 +52,11 @@ Install the necessary dependencies:
 pnpm install
 ```
 
-Run the TypeScript [`your_coin`](https://github.com/aptos-labs/aptos-core/blob/main/ecosystem/typescript/sdk/examples/typescript/your_coin.ts) example:
+Run the TypeScript [`your_fungible_asset`](https://github.com/aptos-labs/aptos-core/blob/main/ecosystem/typescript/sdk/examples/typescript/your_fungible_asset.ts) example:
 
 ```bash
 cd examples/typescript
-pnpm your_coin ~/aptos-core/aptos-move/move-examples/moon_coin
+pnpm your_fungible_asset ~/aptos-core/aptos-move/move-examples/fungible_asset/moon_coin
 ```
 
   </TabItem>
@@ -77,22 +80,22 @@ The example run will pause with the following output:
 
 ```bash
 === Addresses ===
-Alice: 0x5e603a89cf690d7134cf2f24fdb16ba90c4f5686333721c12e835fb6c76bc7ba
-Bob: 0xc8421fa4a99153f955e50f1de2a6acff2f3fd0bb33aa17ba1f5b32b699f6c825
-
+Alice: 0xa816be8abfbcb2c61fd5032715a8ff4155fd19ad67b379c4482bf0a10d320ed9
+Bob: 0xcdbbbb3b6ad9902b49b9055fa907272a701c00abcaf1ea59a4b1ae1ba761bb69
+Charlie: 0xe664111a5e56f69128b72fcc30c1b41745b74d7a51e3528b5e110cad8203b3e6
 Update the package with Alice's address, compile, and press enter.
 ```
 
 At this point, open another terminal and change directories to the StarCoin package's directory:
 
 ```bash
-cd ~/aptos-core/aptos-move/move-examples/moon_coin
+cd ~/aptos-core/aptos-move/move-examples/fungible_asset/moon_coin
 ```
 
 Next, build the package using the CLI:
 
 ```bash
-aptos move compile --named-addresses MoonCoin=0x5e603a89cf690d7134cf2f24fdb16ba90c4f5686333721c12e835fb6c76bc7ba --save-metadata
+aptos move compile --named-addresses MoonCoin=0x47f0713212178a7aca75a3f72b58a9919838083cfd6b4df89ad48f029e004d16 --save-metadata
 ```
 
 The `--named-addresses` is a list of address mappings that must be translated in order for the package to be compiled to be stored in Alice's account. Notice how `MoonCoin` is set to Alice's address printed above. Also `--save-metadata` is required to publish the package.
@@ -106,13 +109,23 @@ Returning to the previous prompt, press ENTER as the package is now ready to be 
 The application will complete, printing:
 
 ```bash
-
 Publishing MoonCoin package.
 
-Bob registers the newly created coin so he can receive it from Alice.
+All the balances in this exmaple refer to balance in primary fungible stores of each account.
+Alice's initial MoonCoin balance: 0.
 Bob's initial MoonCoin balance: 0.
-Alice mints Bob some of the new coin.
+Charlie's initial balance: 0.
+Alice mints Charlie 100 coins.
+Charlie's updated MoonCoin primary fungible store balance: 100.
+Alice freezes Bob's account.
+Alice as the admin forcefully transfers the newly minted coins of Charlie to Bob ignoring that Bob's account is frozen.
 Bob's updated MoonCoin balance: 100.
+Alice unfreezes Bob's account.
+Alice burns 50 coins from Bob.
+Bob's updated MoonCoin balance: 50.
+Bob transfers 10 coins to Alice as the owner.
+Alice's updated MoonCoin balance: 10.
+Bob's updated MoonCoin balance: 40.
 ```
 
 ---
@@ -132,15 +145,13 @@ These are read by the example and published to the Aptos blockchain:
   <TabItem value="typescript" label="Typescript">
 
 ```typescript
-:!: static/sdks/typescript/examples/typescript/your_coin.ts publish
+:!: static/sdks/typescript/examples/typescript/your_fungible_asset.ts publish
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
-```python
-:!: static/sdks/python/examples/your-coin.py publish
-```
+    Coming soon.
 
   </TabItem>
   <TabItem value="rust" label="Rust">
@@ -154,129 +165,73 @@ These are read by the example and published to the Aptos blockchain:
 
 ### Step 4.2: Understanding the MoonCoin module
 
-The MoonCoin module defines the `MoonCoin` struct, or the distinct type of coin type. In addition, it contains a function called `init_module`. The `init_module` function is called when the module is published. In this case, MoonCoin initializes the `MoonCoin` coin type as a `ManagedCoin`, which is maintained by the owner of the account.
+The MoonCoin module contains a function called `init_module` in which it creates a named metadata object that defines a type of FA called "Moon Coin" with a bunch of properties. The `init_module` function is called when the module is published. In this case, MoonCoin initializes the `Moon Coin` metadata object, owned by the owner of the account. According to the module code, the owner will be the admin of "Moon coin" so that they are entitled to manage "Moon Coin" under the fungible asset framework.
 
-:::tip ManagedCoin framework
-[`ManagedCoin`](https://github.com/aptos-labs/aptos-core/blob/f81ccb01f00227f9c0f36856fead4879f185a9f6/aptos-move/framework/aptos-framework/sources/managed_coin.move#L1) is a simple coin management framework for coins directly managed by users. It provides convenience wrappers around `mint` and `burn`.
+:::tip Managed Fungible Asset framework
+[`Managed Fungible Asset`](https://github.com/aptos-labs/aptos-core/blob/main/aptos-move/move-examples/fungible_asset/managed_fungible_asset/sources/managed_fungible_asset.move) is a full-fledged FA management framework for FAs directly managed by users. It provides convenience wrappers around different `refs` and both primary and secondary fungible stores. This example is a simplified version that only deal with primary stores.
 :::
-
-```rust
-:!: static/move-examples/moon_coin/sources/MoonCoin.move moon
-```
 
 ---
 
-### Step 4.3: Understanding coins
+### Step 4.3: Understanding the management primitives of MoonCoin
 
-Coins have several primitives:
+The creator of MoonCoin have several managing primitives:
 
 - **Minting**: Creating new coins.
 - **Burning**: Deleting coins.
-- **Freezing**: Preventing an account from storing coins in `CoinStore`.
-- **Registering**: Creating a `CoinStore` resource on an account for storing coins.
-- **Transferring**: Withdrawing and depositing coins into `CoinStore`.
+- **Freezing/Unfreezing**: Disabling/Enabling the owner of an account to withdraw from or deposit to their primary fungible store of MoonCoin.
+- **Withdraw**: Withdrawing MoonCoin from the primary store of any account regardless of being frozen or not.
+- **Deposit**: Deposit MoonCoin from the primary store of any account regardless of being frozen or not.
+- **Transfer**: Withdraw from one account and deposit to another regardless of either being frozen or not.
 
 :::tip
-
-The entity that creates a new coin gains the capabilities for minting, burning, and freezing.
+The entity that creates MoonCoin gains the capabilities for minting, burning, freezing/unfreezing, and forceful transferring between any fungible stores no matter they are frozen or not.
+So `Withdraw`, `Deposit`, and `Transfer` in the management module have different semantics than those described in fungible asset framework that limited by frozen status.
 :::
 
 ---
 
-#### Step 4.3.1: Initializing a coin
+#### Step 4.3.1: Initializing "Moon Coin" metadata object
 
-Once a coin type has been published to the Aptos blockchain, the entity that published that coin type can initialize it:
+After publish the module to the Aptos blockchain, the entity that published that coin type should initialize a metadata object describing the information about this FA:
 
-```rust showLineNumbers
-public fun initialize<CoinType>(
-    account: &signer,
-    name: string::String,
-    symbol: string::String,
-    decimals: u8,
-    monitor_supply: bool,
-): (BurnCapability<CoinType>, FreezeCapability<CoinType>, MintCapability<CoinType>) {
-    let account_addr = signer::address_of(account);
-
-    assert!(
-        coin_address<CoinType>() == account_addr,
-        error::invalid_argument(ECOIN_INFO_ADDRESS_MISMATCH),
-    );
-
-    assert!(
-        !exists<CoinInfo<CoinType>>(account_addr),
-        error::already_exists(ECOIN_INFO_ALREADY_PUBLISHED),
-    );
-
-    let coin_info = CoinInfo<CoinType> {
-        name,
-        symbol,
-        decimals,
-        supply: if (monitor_supply) { option::some(optional_aggregator::new(MAX_U128, false)) } else { option::none() },
-    };
-    move_to(account, coin_info);
-
-    (BurnCapability<CoinType>{ }, FreezeCapability<CoinType>{ }, MintCapability<CoinType>{ })
-}
+```rust title="moon_coin.move snippet"
+:!: static/move-examples/fungible_asset/moon_coin/sources/MoonCoin.move initialize
 ```
 
-This ensures that this coin type has never been initialized before. Notice the check on lines 10 and 15 to ensure that the caller to `initialize` is the same one that actually published this module, and that there is no `CoinInfo` stored on their account. If both those conditions check, then a `CoinInfo` is stored and the caller obtains capabilities for burning, freezing, and minting.
+This ensures that this FA type has never been initialized before using a named object. Notice the first line create a named object with a static seed, if the metadata object has been created it will abort.
+Then we call `primary_fungible_store::create_primary_store_enabled_fungible_asset` to create a FA metadata resource inside the newly created object, most of the time you call this function to initialize
+the metadata object. After this call, we generate all the `Refs` that are necessary for the management api and store them in a customized wrapper resource.
 
 :::tip
-MoonCoin calls this `initialize` function automatically upon package publishing.
+MoonCoin does all the initialization automatically upon package publishing via `init_module(&signer)`.
 :::
 
----
-
-#### Step 4.3.2: Registering a coin
-
-To use a coin, an entity must register a `CoinStore` for it on their account:
-
-```rust
-public entry fun registerCoinType(account: &signer) {
-```
-
-MoonCoin uses `ManagedCoin` that provides an entry function wrapper: `managed_coin::register`. Here is an example script for registration:
-
-```rust
-:!: static/move-examples/moon_coin/scripts/register.move moon
-```
+Different from coin module, FA doesn't require users to register to use it because primary store will be automatically created if necessary.
 
 ---
 
-#### Step 4.3.3: Minting a coin
+#### Step 4.3.3: Managing a coin
 
-Minting coins requires the mint capability that was produced during initialization. the function `mint` (see below) takes in that capability and an amount, and returns back a `Coin<T>` struct containing that amount of coins. If the coin tracks supply, it will be updated.
+Minting coins requires `MintRef` that was produced during initialization. the function `mint` (see below) takes in the creator and an amount, and returns a `FungibleAsset` struct containing that amount of FA. If the FA tracks supply, it will be updated.
 
-```rust
-public fun mint<CoinType>(
-    amount: u64,
-    _cap: &MintCapability<CoinType>,
-): Coin<CoinType> acquires CoinInfo {
-    if (amount == 0) {
-        return zero<CoinType>()
-    };
-
-    let maybe_supply = &mut borrow_global_mut<CoinInfo<CoinType>>(coin_address<CoinType>()).supply;
-    if (option::is_some(maybe_supply)) {
-        let supply = option::borrow_mut(maybe_supply);
-        optional_aggregator::add(supply, (amount as u128));
-    };
-
-    Coin<CoinType> { value: amount }
-}
+```rust title="moon_coin.move snippet"
+:!: static/move-examples/fungible_asset/moon_coin/sources/MoonCoin.move mint
 ```
 
-`ManagedCoin` makes this easier by providing a entry function `managed_coin::mint`.
+`MoonCoin` makes this easier by providing an entry function `moon_coin::mint` that accesses the required `MintRef` for the creator.
+
+Similarly, the module provides `burn`, `set_frozen_flag`, `transfer`, `Withdraw` and `Deposit` functions to manage MoonCoin following the same pattern with different refs.
 
 ---
 
-#### Step 4.3.4: Transferring a coin
+#### Step 4.3.4: API of Transferring FAs
 
-Aptos provides several building blocks to support coin transfers:
+Aptos provides several APIs to support FA flows with same names in different modules:
 
-- `coin::deposit<CoinType>`: Allows any entity to deposit a coin into an account that has already called `coin::register<CoinType>`.
-- `coin::withdraw<CoinType>`: Allows any entity to extract a coin amount from their account.
-- `aptos_account::transfer_coins<CoinType>`: Transfer coins of specific CoinType to a receiver.
+- `fungible_asset::{transfer/withdraw/deposit}`: Move FA between different unfrozen fungible stores objects.
+- `fungible_asset::{transfer/withdraw/deposit}_with_ref`: Move FA between different fungible stores objects with the corresponding `TransferRef` regardless their frozen status.
+- `primary_fungible_store::{transfer/withdraw/deposit}`: Move FA between unfrozen primary stores of different accounts.
 
 :::tip important
 There are two separate withdraw and deposit events instead of a single transfer event.
@@ -285,6 +240,7 @@ There are two separate withdraw and deposit events instead of a single transfer 
 ## Supporting documentation
 
 * [Aptos CLI](../tools/aptos-cli-tool/use-aptos-cli.md)
+* [Fungible Asset](../standards/fungible-asset.md)
 * [TypeScript SDK](../sdks/ts-sdk/index.md)
 * [Python SDK](../sdks/python-sdk.md)
 * [Rust SDK](../sdks/rust-sdk.md)
