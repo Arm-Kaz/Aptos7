@@ -31,6 +31,7 @@ fungible asset to it. This emits an deposit event.
 -  [Function `deposit`](#0x1_primary_fungible_store_deposit)
 -  [Function `transfer`](#0x1_primary_fungible_store_transfer)
 -  [Specification](#@Specification_0)
+    -  [Function `create_primary_store`](#@Specification_0_create_primary_store)
 
 
 <pre><code><b>use</b> <a href="fungible_asset.md#0x1_fungible_asset">0x1::fungible_asset</a>;
@@ -421,6 +422,26 @@ Transfer <code>amount</code> of fungible asset from sender's primary store to re
 
 
 <pre><code><b>pragma</b> verify = <b>false</b>;
+</code></pre>
+
+
+
+<a name="@Specification_0_create_primary_store"></a>
+
+### Function `create_primary_store`
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="primary_fungible_store.md#0x1_primary_fungible_store_create_primary_store">create_primary_store</a>&lt;T: key&gt;(owner_addr: <b>address</b>, metadata: <a href="object.md#0x1_object_Object">object::Object</a>&lt;T&gt;): <a href="object.md#0x1_object_Object">object::Object</a>&lt;<a href="fungible_asset.md#0x1_fungible_asset_FungibleStore">fungible_asset::FungibleStore</a>&gt;
+</code></pre>
+
+
+
+
+<pre><code><b>pragma</b> verify = <b>true</b>;
+<b>pragma</b> aborts_if_is_partial;
+<b>let</b> metadata_addr = metadata.inner;
+<b>aborts_if</b> !<b>exists</b>&lt;<a href="object.md#0x1_object_ObjectCore">object::ObjectCore</a>&gt;(metadata_addr);
+<b>aborts_if</b> !<b>exists</b>&lt;Metadata&gt;(metadata_addr);
 </code></pre>
 
 
